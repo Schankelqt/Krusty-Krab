@@ -1,2 +1,7 @@
 .DS_Store
 .cursor/
+
+# Секреты и локальная конфигурация
+.env
+.env.local
+*.pem

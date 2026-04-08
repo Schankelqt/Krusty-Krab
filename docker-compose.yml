@@ -1,0 +1,44 @@
+# Локально и на сервере: docker compose --env-file .env up -d
+# Пока без сборки bot/worker — только инфраструктура под OpenClaw.md
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: assistant_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6379:6379"
+
+  # Раскомментировать, когда будут bot / worker:
+  # bot:
+  #   build: .
+  #   env_file: .env
+  #   depends_on: [db, redis]
+  #   restart: unless-stopped
+  #
+  # worker:
+  #   build: .
+  #   command: celery -A workers worker --beat
+  #   env_file: .env
+  #   depends_on: [db, redis]
+  #   restart: unless-stopped
+
+  # OpenClaw — отдельный образ/сервис по инструкции проекта; заготовка:
+  # openclaw:
+  #   image: ...
+  #   env_file: .env
+
+volumes:
+  pgdata:
+  redisdata:

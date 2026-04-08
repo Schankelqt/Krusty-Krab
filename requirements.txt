@@ -1,0 +1,8 @@
+# Зависимости поднимутся по мере разработки (см. документация/OpenClaw.md)
+# python 3.11+
+# aiogram>=3
+# sqlalchemy[asyncio]
+# asyncpg
+# pydantic-settings
+# redis
+# celery
