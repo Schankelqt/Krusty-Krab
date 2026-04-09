@@ -20,12 +20,13 @@ services:
     ports:
       - "6379:6379"
 
-  # Раскомментировать, когда будут bot / worker:
-  # bot:
-  #   build: .
-  #   env_file: .env
-  #   depends_on: [db, redis]
-  #   restart: unless-stopped
+  bot:
+    build: .
+    env_file: .env
+    depends_on: [db, redis]
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
   #
   # worker:
   #   build: .
