@@ -8,6 +8,7 @@ from redis.asyncio import Redis
 
 from core.config import Settings
 from models.user import User
+from services.app_config import ProductLimits
 from services.billing_llm import resolve_primary_provider_for_paid_user
 from services.limits_service import LimitsService
 from services.usage_service import UsageService
@@ -22,6 +23,8 @@ class AccessDecision:
     increment_trial: bool
     increment_soft_daily: bool
     increment_paid_fallback_daily: bool
+    # Код отказа для метрик (если allowed=False)
+    deny_reason: str | None = None
 
 
 def paid_period_active(user: User, now: datetime) -> bool:
@@ -30,30 +33,31 @@ def paid_period_active(user: User, now: datetime) -> bool:
     return user.subscription_period_start <= now < user.subscription_period_end
 
 
-def trial_active(user: User, settings: Settings, now: datetime) -> bool:
+def trial_active(user: User, pl: ProductLimits, now: datetime) -> bool:
     if user.is_active or user.trial_started_at is None:
         return False
-    if user.trial_message_count >= settings.trial_message_limit:
+    if user.trial_message_count >= pl.trial_message_limit:
         return False
     end = user.trial_started_at
     if end.tzinfo is None:
         end = end.replace(tzinfo=timezone.utc)
-    trial_end = end + timedelta(hours=settings.trial_duration_hours)
+    trial_end = end + timedelta(hours=pl.trial_duration_hours)
     return now < trial_end
 
 
-def _post_trial_soft_eligible(user: User, settings: Settings, now: datetime) -> bool:
+def _post_trial_soft_eligible(user: User, pl: ProductLimits, now: datetime) -> bool:
     if user.is_active:
         return False
     if user.trial_started_at is None:
         return False
-    return not trial_active(user, settings, now)
+    return not trial_active(user, pl, now)
 
 
 async def resolve_chat_access(
     *,
     user: User,
     settings: Settings,
+    product_limits: ProductLimits,
     now: datetime,
     usage_service: UsageService,
     limits: LimitsService,
@@ -62,7 +66,9 @@ async def resolve_chat_access(
         start = user.subscription_period_start
         end = user.subscription_period_end
         assert start is not None and end is not None
-        used = await usage_service.get_user_tokens_in_period(user.id, start, end)
+        used = await usage_service.get_metered_tokens_in_period(
+            user.id, start, end, providers=settings.metering_primary_providers
+        )
         token_limit = settings.paid_token_limit_for_plan(user.plan)
         if used >= token_limit:
             if not await limits.can_paid_fallback(user.id):
@@ -74,6 +80,7 @@ async def resolve_chat_access(
                     increment_trial=False,
                     increment_soft_daily=False,
                     increment_paid_fallback_daily=False,
+                    deny_reason="paid_fallback_daily_cap",
                 )
             return AccessDecision(
                 allowed=True,
@@ -83,6 +90,7 @@ async def resolve_chat_access(
                 increment_trial=False,
                 increment_soft_daily=False,
                 increment_paid_fallback_daily=True,
+                deny_reason=None,
             )
         return AccessDecision(
             allowed=True,
@@ -92,6 +100,7 @@ async def resolve_chat_access(
             increment_trial=False,
             increment_soft_daily=False,
             increment_paid_fallback_daily=False,
+            deny_reason=None,
         )
 
     if user.is_active and not paid_period_active(user, now):
@@ -104,6 +113,7 @@ async def resolve_chat_access(
                 increment_trial=False,
                 increment_soft_daily=False,
                 increment_paid_fallback_daily=False,
+                deny_reason="soft_after_paid_exhausted",
             )
         return AccessDecision(
             allowed=True,
@@ -113,9 +123,10 @@ async def resolve_chat_access(
             increment_trial=False,
             increment_soft_daily=True,
             increment_paid_fallback_daily=False,
+            deny_reason=None,
         )
 
-    if trial_active(user, settings, now):
+    if trial_active(user, product_limits, now):
         return AccessDecision(
             allowed=True,
             deny_message=None,
@@ -124,9 +135,10 @@ async def resolve_chat_access(
             increment_trial=True,
             increment_soft_daily=False,
             increment_paid_fallback_daily=False,
+            deny_reason=None,
         )
 
-    if _post_trial_soft_eligible(user, settings, now):
+    if _post_trial_soft_eligible(user, product_limits, now):
         if not await limits.can_soft_daily(user.id):
             return AccessDecision(
                 allowed=False,
@@ -136,6 +148,7 @@ async def resolve_chat_access(
                 increment_trial=False,
                 increment_soft_daily=False,
                 increment_paid_fallback_daily=False,
+                deny_reason="soft_post_trial_exhausted",
             )
         return AccessDecision(
             allowed=True,
@@ -145,6 +158,7 @@ async def resolve_chat_access(
             increment_trial=False,
             increment_soft_daily=True,
             increment_paid_fallback_daily=False,
+            deny_reason=None,
         )
 
     return AccessDecision(
@@ -155,6 +169,7 @@ async def resolve_chat_access(
         increment_trial=False,
         increment_soft_daily=False,
         increment_paid_fallback_daily=False,
+        deny_reason="need_cta_trial_or_subscribe",
     )
 
 
@@ -166,14 +181,15 @@ async def maybe_send_token_warnings(
     used_before: int,
     used_after: int,
     send_message: Callable[[str], Awaitable[None]],
-) -> None:
+) -> list[str]:
+    """Отправляет предупреждения о токенах; возвращает ключи сработавших порогов для метрик."""
+    fired: list[str] = []
     if user.subscription_period_start is None:
-        return
+        return fired
     limit = settings.paid_token_limit_for_plan(user.plan)
     if limit <= 0:
-        return
+        return fired
     remaining_after = limit - used_after
-    pct_remaining = remaining_after / limit
     period_tag = str(int(user.subscription_period_start.timestamp()))
 
     if remaining_after <= int(limit * 0.20) and (limit - used_before) > int(limit * 0.20):
@@ -183,6 +199,7 @@ async def maybe_send_token_warnings(
             await send_message(
                 f"⚠️ Осталось меньше 20% токенов на период: ~{max(0, remaining_after):,} из {limit:,}."
             )
+            fired.append("token_warn_20pct")
 
     if remaining_after <= int(limit * 0.05) and (limit - used_before) > int(limit * 0.05):
         key = f"tokwarn:5:{user.id}:{period_tag}"
@@ -192,3 +209,5 @@ async def maybe_send_token_warnings(
                 f"🔻 Осталось меньше 5% токенов на период: ~{max(0, remaining_after):,} из {limit:,}. "
                 "Далее включится экономичный режим (Ollama) с дневным лимитом."
             )
+            fired.append("token_warn_5pct")
+    return fired

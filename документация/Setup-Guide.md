@@ -39,7 +39,21 @@
   - [ ] **`INTERNAL_TEST_MODE=true`**
   - [ ] **`INTERNAL_WHITELIST_IDS`** — через запятую числовые **Telegram user id** (узнать у @userinfobot или аналога).
 - [ ] Для продакшена: **`INTERNAL_TEST_MODE=false`** и пустой/неиспользуемый whitelist (логика доступа тогда без whitelist).
-- [ ] **`ADMIN_IDS`** — через запятую ваши user id для команд `/admin_grant` и т.д.
+- [ ] **`ADMIN_IDS`** — через запятую ваши user id для команд `/admin_grant`, `/admin_revoke`, **`/report_now`** и т.д.
+- [ ] Опционально **`ADMIN_TEAM_CHAT_ID`** — один чат/канал для алертов команды (бот — админ с правом писать). Иначе алерты уходят в личку каждому из `ADMIN_IDS`.
+
+### Панель `/admin`
+
+- [ ] Команда **`/admin`** открывает inline-меню: сводка, лимиты (триал / soft / paid fallback), уведомления, доп. whitelist.
+- [ ] Настройки из панели пишутся в таблицу **`app_settings`** и перекрывают значения из `.env` (кеш ~25 с; кнопка «Сбросить кеш» в панели).
+
+### Метрики и ежедневный отчёт в Telegram
+
+- [ ] **`METRICS_ENABLED=true`** — события пишутся в таблицу **`bot_events`** (см. `MVP-Product-Logic.md` §11).
+- [ ] Канал для отчётов: создать канал, добавить **бота администратором** с правом **публиковать сообщения**, скопировать id канала (часто вида **`-100…`**) в **`METRICS_REPORT_CHAT_ID`**.
+- [ ] **`METRICS_REPORT_ENABLED=true`**, **`METRICS_REPORT_HOUR_UTC`** (0–23) — ежедневная сводка за последние 24 ч UTC. Для проверки после деплоя: **`METRICS_REPORT_ON_START=true`** (один отчёт через ~15 с после старта), затем выключить.
+- [ ] Ручная отправка той же сводки: **`/report_now`** (из-под **`ADMIN_IDS`**).
+- [ ] Опционально **`METRICS_INTERNAL_TOKEN`**: `curl -H "Authorization: Bearer <token>" http://localhost:8080/internal/metrics/summary` — JSON для внешних дашбордов.
 
 ---
 
@@ -142,6 +156,30 @@ CREATE INDEX IF NOT EXISTS ix_payments_user_id ON payments (user_id);
 
 -- если таблица payments уже существовала без колонки линии
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS llm_line VARCHAR(16);
+
+-- метрики (если таблицы ещё нет)
+CREATE TABLE IF NOT EXISTS bot_events (
+  id SERIAL PRIMARY KEY,
+  event_type VARCHAR(64) NOT NULL,
+  user_id BIGINT NULL,
+  payload JSONB NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS ix_bot_events_created_at ON bot_events (created_at);
+CREATE INDEX IF NOT EXISTS ix_bot_events_event_type_created ON bot_events (event_type, created_at);
+CREATE INDEX IF NOT EXISTS ix_bot_events_user_id_created ON bot_events (user_id, created_at);
+
+-- онбординг (новые пользователи проходят шаги в /start)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL DEFAULT true;
+
+-- настройки из панели /admin
+CREATE TABLE IF NOT EXISTS app_settings (
+  key VARCHAR(64) PRIMARY KEY,
+  value JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 ```
 
 Точные имена колонок сверяйте с **`models/`** при изменениях кода.

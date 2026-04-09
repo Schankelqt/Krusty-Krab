@@ -14,26 +14,35 @@ from services.access_policy import (
     resolve_chat_access,
     trial_active,
 )
-from services.llm_router import LLMRouter
-from services.limits_service import LimitsService
+from services.app_config import is_internal_access_allowed, load_product_limits
 from services.checkout_service import create_subscription_checkout_url
+from services.limits_service import LimitsService
+from services.llm_router import LLMRouter
+from services.metrics_service import record_event
 from services.usage_service import UsageService
 from services.user_service import UserService
 
 router = Router()
 
 
+def _trial_provider_label(settings) -> str:
+    p = settings.trial_provider
+    return {"ollama": "Ollama", "mock": "mock"}.get(p, p)
+
+
 @router.message(Command("tokens"))
 async def show_tokens(message: Message) -> None:
     settings = get_settings()
-    if settings.internal_test_mode and message.from_user.id not in settings.internal_whitelist_id_set:
-        await message.answer("MVP: доступ только для whitelist.")
-        return
-
     async with SessionLocal() as session:
+        if not await is_internal_access_allowed(message.from_user.id, settings, session):
+            await record_event("whitelist_blocked", user_id=message.from_user.id, payload={"where": "command_tokens"})
+            await message.answer("Доступ ограничен (режим внутреннего теста). Обратитесь к администратору.")
+            return
+
         user_service = UserService(session)
         usage_service = UsageService(session)
-        user = await user_service.get_or_create(
+        pl = await load_product_limits(session, settings)
+        user, _ = await user_service.get_or_create(
             user_id=message.from_user.id,
             username=message.from_user.username,
             first_name=message.from_user.first_name,
@@ -42,25 +51,32 @@ async def show_tokens(message: Message) -> None:
 
         if user.subscription_period_start is None or user.subscription_period_end is None:
             lines: list[str] = []
-            if trial_active(user, settings, now):
+            if trial_active(user, pl, now):
                 assert user.trial_started_at is not None
                 end = user.trial_started_at
                 if end.tzinfo is None:
                     end = end.replace(tzinfo=timezone.utc)
-                trial_end = end + timedelta(hours=settings.trial_duration_hours)
+                trial_end = end + timedelta(hours=pl.trial_duration_hours)
                 lines.append("Триал активен.")
-                lines.append(f"Сообщений триала: {user.trial_message_count}/{settings.trial_message_limit}")
+                lines.append(f"Сообщений триала: {user.trial_message_count}/{pl.trial_message_limit}")
                 lines.append(f"До конца триала (UTC): {trial_end:%d.%m.%Y %H:%M}")
             elif user.trial_started_at is not None:
                 lines.append("Триал завершён. Доступен мягкий режим или подписка.")
             else:
                 lines.append("Платный период не начат — нажмите триал или оплату.")
             await message.answer("\n".join(lines))
+            await record_event(
+                "command_tokens",
+                user_id=message.from_user.id,
+                payload={"segment": "no_paid_period"},
+            )
             return
 
         start = user.subscription_period_start
         end = user.subscription_period_end
-        used = await usage_service.get_user_tokens_in_period(user.id, start, end)
+        used = await usage_service.get_metered_tokens_in_period(
+            user.id, start, end, providers=settings.metering_primary_providers
+        )
         token_limit = settings.paid_token_limit_for_plan(user.plan)
         remaining = max(0, token_limit - used)
         expired = now >= end
@@ -75,20 +91,33 @@ async def show_tokens(message: Message) -> None:
         lines.extend(
             [
                 f"Линия API: {line_label} (пусто = глобальный PRIMARY_PROVIDER, напр. OpenClaw).",
-                f"Использовано токенов: {used:,}",
+                f"Использовано токенов (только платные API, без Ollama/mock): {used:,}",
                 f"Лимит за период (пакет {user.plan}): {token_limit:,}",
                 f"Остаток: {remaining:,}",
             ]
         )
         await message.answer("\n".join(lines))
+        await record_event(
+            "command_tokens",
+            user_id=message.from_user.id,
+            payload={
+                "segment": "paid_period",
+                "plan": user.plan,
+                "billing_llm_line": user.billing_llm_line,
+                "expired": expired,
+            },
+        )
 
 
 @router.callback_query(F.data.startswith("pay:"))
 async def on_plan_checkout(callback: CallbackQuery) -> None:
     settings = get_settings()
-    if settings.internal_test_mode and callback.from_user.id not in settings.internal_whitelist_id_set:
-        await callback.answer("Нет доступа.", show_alert=True)
-        return
+    async with SessionLocal() as session:
+        if not await is_internal_access_allowed(callback.from_user.id, settings, session):
+            await record_event("whitelist_blocked", user_id=callback.from_user.id, payload={"where": "pay_callback"})
+            await callback.answer("Нет доступа.", show_alert=True)
+            return
+
     if not settings.yukassa_configured:
         await callback.answer("Оплата не настроена.", show_alert=True)
         return
@@ -119,9 +148,19 @@ async def on_plan_checkout(callback: CallbackQuery) -> None:
                 llm_line=llm_line,
             )
         except Exception as exc:  # noqa: BLE001
+            await record_event(
+                "checkout_failed",
+                user_id=callback.from_user.id,
+                payload={"plan": plan, "llm_line": llm_line, "error": str(exc)[:500]},
+            )
             await callback.answer(f"Ошибка: {exc}", show_alert=True)
             return
 
+    await record_event(
+        "checkout_created",
+        user_id=callback.from_user.id,
+        payload={"plan": plan, "llm_line": llm_line},
+    )
     amount = settings.billing_amount_rub(llm_line, plan)
     text = (
         f"<b>{llm_line.upper()}</b>, пакет <b>{plan}</b> — "
@@ -139,8 +178,11 @@ async def handle_text(message: Message) -> None:
         return
 
     settings = get_settings()
-    if settings.internal_test_mode and message.from_user.id not in settings.internal_whitelist_id_set:
-        await message.answer("MVP в режиме внутреннего теста: доступ только для whitelist.")
+    async with SessionLocal() as session:
+        allowed = await is_internal_access_allowed(message.from_user.id, settings, session)
+    if not allowed:
+        await record_event("whitelist_blocked", user_id=message.from_user.id, payload={"where": "text_message"})
+        await message.answer("Доступ ограничен (режим внутреннего теста). Обратитесь к администратору.")
         return
 
     if text.startswith("/"):
@@ -148,11 +190,13 @@ async def handle_text(message: Message) -> None:
 
     if text == settings.btn_plans:
         if not settings.yukassa_configured:
+            await record_event("plans_button_no_yookassa", user_id=message.from_user.id)
             await message.answer(
                 "Оплата через ЮKassa пока не настроена (нет ключей в .env). "
-                "Доступны триал и мягкий режим; для теста подписки используйте /admin_grant."
+                "Доступны триал и мягкий режим; для теста подписки администратор может выдать доступ командой /admin_grant."
             )
             return
+        await record_event("plans_keyboard_shown", user_id=message.from_user.id)
         await message.answer(
             "Выберите линию модели и пакет токенов на период (1M / 2M / 3M):",
             reply_markup=plans_inline_keyboard(),
@@ -171,25 +215,30 @@ async def _handle_trial_button(message: Message) -> None:
     now = datetime.now(timezone.utc)
     async with SessionLocal() as session:
         user_service = UserService(session)
-        user = await user_service.get_or_create(
+        pl = await load_product_limits(session, settings)
+        user, _ = await user_service.get_or_create(
             user_id=message.from_user.id,
             username=message.from_user.username,
             first_name=message.from_user.first_name,
         )
         if user.is_active:
             if paid_period_active(user, now):
+                await record_event("trial_button_already_paid_active", user_id=message.from_user.id)
                 await message.answer("У вас уже активна оплаченная подписка в текущем периоде.")
             else:
+                await record_event("trial_button_paid_no_period", user_id=message.from_user.id)
                 await message.answer(
                     "Аккаунт помечен как оплаченный, но биллинговый период не задан. Обратитесь к администратору."
                 )
             return
-        if trial_active(user, settings, now):
+        if trial_active(user, pl, now):
+            await record_event("trial_button_already_in_trial", user_id=message.from_user.id)
             await message.answer(
-                f"Триал уже идёт: использовано {user.trial_message_count}/{settings.trial_message_limit} сообщений."
+                f"Триал уже идёт: использовано {user.trial_message_count}/{pl.trial_message_limit} сообщений."
             )
             return
         if user.trial_started_at is not None:
+            await record_event("trial_button_trial_used", user_id=message.from_user.id)
             await message.answer(
                 "Триал уже использован. Доступен мягкий режим (несколько ответов в день) "
                 "или подписка через «Тарифы и оплата»."
@@ -199,9 +248,10 @@ async def _handle_trial_button(message: Message) -> None:
         user.trial_message_count = 0
         await session.commit()
 
+    await record_event("trial_started", user_id=message.from_user.id)
     await message.answer(
-        f"Триал запущен: {settings.trial_duration_hours} ч, до {settings.trial_message_limit} сообщений на Ollama. "
-        "Пишите обычным текстом в этот чат."
+        f"Триал запущен: {pl.trial_duration_hours} ч, до {pl.trial_message_limit} сообщений "
+        f"через {_trial_provider_label(settings)}. Пишите обычным текстом в этот чат."
     )
 
 
@@ -214,8 +264,9 @@ async def _handle_llm_message(message: Message, text: str) -> None:
         async with SessionLocal() as session:
             user_service = UserService(session)
             usage_service = UsageService(session)
-            limits = LimitsService(redis_client)
-            user = await user_service.get_or_create(
+            pl = await load_product_limits(session, settings)
+            limits = LimitsService(redis_client, pl)
+            user, _ = await user_service.get_or_create(
                 user_id=message.from_user.id,
                 username=message.from_user.username,
                 first_name=message.from_user.first_name,
@@ -224,22 +275,31 @@ async def _handle_llm_message(message: Message, text: str) -> None:
             decision = await resolve_chat_access(
                 user=user,
                 settings=settings,
+                product_limits=pl,
                 now=now,
                 usage_service=usage_service,
                 limits=limits,
             )
             if not decision.allowed:
+                await record_event(
+                    "access_denied",
+                    user_id=message.from_user.id,
+                    payload={"reason": decision.deny_reason or "unknown"},
+                )
                 await message.answer(decision.deny_message or "Доступ временно недоступен.")
                 return
 
             used_before = 0
-            if paid_period_active(user, now) and decision.provider_name in settings.metering_primary_providers:
+            if paid_period_active(user, now):
                 assert user.subscription_period_start is not None and user.subscription_period_end is not None
-                used_before = await usage_service.get_user_tokens_in_period(
-                    user.id, user.subscription_period_start, user.subscription_period_end
+                used_before = await usage_service.get_metered_tokens_in_period(
+                    user.id,
+                    user.subscription_period_start,
+                    user.subscription_period_end,
+                    providers=settings.metering_primary_providers,
                 )
 
-            router_service = LLMRouter(redis_client=redis_client, db_session=session)
+            router_service = LLMRouter(redis_client=redis_client, db_session=session, product_limits=pl)
             try:
                 response = await router_service.generate(
                     user=user,
@@ -248,6 +308,14 @@ async def _handle_llm_message(message: Message, text: str) -> None:
                     increment_primary_daily=decision.increment_primary_daily,
                 )
             except Exception as exc:  # noqa: BLE001
+                await record_event(
+                    "llm_error",
+                    user_id=message.from_user.id,
+                    payload={
+                        "provider": decision.provider_name,
+                        "error": str(exc)[:500],
+                    },
+                )
                 await message.answer(f"Ошибка LLM: {exc}")
                 return
 
@@ -260,27 +328,55 @@ async def _handle_llm_message(message: Message, text: str) -> None:
 
             if decision.increment_soft_daily:
                 await limits.increment_soft_daily(user.id)
+                await record_event("limit_soft_consumed", user_id=user.id)
             if decision.increment_paid_fallback_daily:
                 await limits.increment_paid_fallback_daily(user.id)
+                await record_event("limit_paid_fallback_consumed", user_id=user.id)
 
-            await message.answer(f"{response.text}\n\n(provider={response.provider}, model={response.model})")
+            reply_body = response.text
+            if settings.show_llm_debug_in_reply:
+                reply_body += f"\n\n(provider={response.provider}, model={response.model})"
+            await message.answer(reply_body)
 
-            if paid_period_active(user, now) and decision.provider_name in settings.metering_primary_providers:
+            await record_event(
+                "llm_reply_success",
+                user_id=user.id,
+                payload={
+                    "provider": response.provider,
+                    "model": response.model,
+                    "tokens_in": response.tokens_in,
+                    "tokens_out": response.tokens_out,
+                    "user_plan": user.plan,
+                    "billing_llm_line": user.billing_llm_line,
+                    "increment_trial": decision.increment_trial,
+                    "increment_soft_daily": decision.increment_soft_daily,
+                    "increment_paid_fallback_daily": decision.increment_paid_fallback_daily,
+                    "paid_period": paid_period_active(user, now),
+                },
+            )
+            if decision.increment_trial:
+                await record_event("trial_message_consumed", user_id=user.id)
+
+            if paid_period_active(user, now):
                 assert user.subscription_period_start is not None and user.subscription_period_end is not None
-                used_after = await usage_service.get_user_tokens_in_period(
-                    user.id, user.subscription_period_start, user.subscription_period_end
+                used_after = await usage_service.get_metered_tokens_in_period(
+                    user.id,
+                    user.subscription_period_start,
+                    user.subscription_period_end,
+                    providers=settings.metering_primary_providers,
                 )
 
                 async def _notify(msg: str) -> None:
                     await message.answer(msg)
 
-                await maybe_send_token_warnings(
+                for w in await maybe_send_token_warnings(
                     redis=redis_client,
                     user=user,
                     settings=settings,
                     used_before=used_before,
                     used_after=used_after,
                     send_message=_notify,
-                )
+                ):
+                    await record_event(w, user_id=user.id, payload={"used_after": used_after})
     finally:
         await redis_client.aclose()

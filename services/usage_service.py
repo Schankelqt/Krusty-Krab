@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from collections.abc import Collection
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +32,27 @@ class UsageService:
             UsageLog.user_id == user_id,
             UsageLog.created_at >= period_start,
             UsageLog.created_at < period_end,
+        )
+        result = await self.session.execute(stmt)
+        return int(result.scalar_one() or 0)
+
+    async def get_metered_tokens_in_period(
+        self,
+        user_id: int,
+        period_start: datetime,
+        period_end: datetime,
+        *,
+        providers: Collection[str],
+    ) -> int:
+        """Сумма токенов только по провайдерам, входящим в лимит платного периода (не ollama/mock)."""
+        names = tuple(p for p in providers if p)
+        if not names:
+            return 0
+        stmt = select(func.coalesce(func.sum(UsageLog.tokens_in + UsageLog.tokens_out), 0)).where(
+            UsageLog.user_id == user_id,
+            UsageLog.created_at >= period_start,
+            UsageLog.created_at < period_end,
+            UsageLog.provider.in_(names),
         )
         result = await self.session.execute(stmt)
         return int(result.scalar_one() or 0)

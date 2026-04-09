@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base, TimestampMixin
@@ -29,3 +29,8 @@ class User(Base, TimestampMixin):
 
     trial_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     trial_message_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Онбординг: false только у новых пользователей (в коде); в БД server_default true для старых строк
+    onboarding_completed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("true")
+    )

@@ -8,19 +8,26 @@ class UserService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def get_or_create(self, user_id: int, username: str | None, first_name: str | None) -> User:
+    async def get_or_create(self, user_id: int, username: str | None, first_name: str | None) -> tuple[User, bool]:
         user = await self.session.get(User, user_id)
         if user:
             user.username = username
             user.first_name = first_name
             await self.session.commit()
-            return user
+            return user, False
 
-        user = User(id=user_id, username=username, first_name=first_name, plan="basic", is_active=False)
+        user = User(
+            id=user_id,
+            username=username,
+            first_name=first_name,
+            plan="basic",
+            is_active=False,
+            onboarding_completed=False,
+        )
         self.session.add(user)
         await self.session.commit()
         await self.session.refresh(user)
-        return user
+        return user, True
 
     async def get(self, user_id: int) -> User | None:
         return await self.session.get(User, user_id)

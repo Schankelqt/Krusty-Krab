@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import Settings
 from core.database import SessionLocal
 from models.payment import Payment
+from services.metrics_service import record_event
+from services.team_notifications import notify_team_html
 from services.subscription_service import activate_paid_subscription
 from services.telegram_notify import send_telegram_user_text
 from services.yookassa_client import get_payment
@@ -25,11 +27,19 @@ async def process_yookassa_notification(settings: Settings, body: dict[str, Any]
         return
 
     if event == "payment.canceled":
+        uid_metric: int | None = None
         async with SessionLocal() as session:
             row = await _get_payment_row(session, str(payment_id))
             if row:
                 row.status = "canceled"
+                uid_metric = row.user_id
                 await session.commit()
+        if uid_metric is not None:
+            await record_event(
+                "payment_canceled",
+                user_id=uid_metric,
+                payload={"yookassa_payment_id": str(payment_id)},
+            )
         return
 
     if event != "payment.succeeded":
@@ -108,9 +118,34 @@ async def process_yookassa_notification(settings: Settings, body: dict[str, Any]
         except ValueError:
             logger.exception("User %s missing for payment %s", uid, payment_id)
             await session.rollback()
+            await record_event(
+                "payment_activate_failed",
+                user_id=uid,
+                payload={"yookassa_payment_id": str(payment_id), "reason": "user_not_found"},
+            )
             return
 
         await session.commit()
+
+    await record_event(
+        "payment_succeeded",
+        user_id=uid,
+        payload={
+            "yookassa_payment_id": str(payment_id),
+            "plan": plan,
+            "llm_line": billing_line,
+            "amount": str(amount_remote) if amount_remote is not None else None,
+        },
+    )
+
+    line_h = billing_line or "—"
+    await notify_team_html(
+        f"Оплата успешна\n"
+        f"Пользователь: <code>{uid}</code>\n"
+        f"План: <b>{plan}</b>, линия: <b>{line_h}</b>\n"
+        f"Сумма: {amount_remote} {settings.yukassa_currency}",
+        kind="payment",
+    )
 
     try:
         await send_telegram_user_text(

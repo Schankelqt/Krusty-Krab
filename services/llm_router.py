@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import get_settings
 from models.user import User
+from services.app_config import ProductLimits
 from services.limits_service import LimitsService
 from services.providers import (
     LLMResponse,
@@ -16,11 +17,16 @@ from services.providers import (
 
 
 class LLMRouter:
-    def __init__(self, redis_client: Redis, db_session: AsyncSession) -> None:
+    def __init__(
+        self,
+        redis_client: Redis,
+        db_session: AsyncSession,
+        product_limits: ProductLimits,
+    ) -> None:
         self.settings = get_settings()
         self.redis = redis_client
         self.db_session = db_session
-        self.limits = LimitsService(redis_client)
+        self.limits = LimitsService(redis_client, product_limits)
 
         self.providers = {
             "openai": OpenAIProvider(),

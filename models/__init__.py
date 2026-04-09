@@ -1,6 +1,8 @@
+from models.app_setting import AppSetting
 from models.base import Base
+from models.bot_event import BotEvent
 from models.payment import Payment
 from models.usage_log import UsageLog
 from models.user import User
 
-__all__ = ["Base", "User", "UsageLog", "Payment"]
+__all__ = ["Base", "User", "UsageLog", "Payment", "BotEvent", "AppSetting"]

@@ -10,6 +10,8 @@ class Settings(BaseSettings):
 
     bot_token: str = Field(alias="BOT_TOKEN")
     admin_ids: str = Field(default="", alias="ADMIN_IDS")
+    # Один чат для алертов команды (опционально); иначе личные сообщения всем ADMIN_IDS
+    admin_team_chat_id: str = Field(default="", alias="ADMIN_TEAM_CHAT_ID")
 
     database_url: str = Field(alias="DATABASE_URL")
     redis_url: str = Field(alias="REDIS_URL")
@@ -50,9 +52,20 @@ class Settings(BaseSettings):
     btn_trial: str = Field(default="🪄 Познакомиться с OpenClaw", alias="BTN_TRIAL")
     btn_plans: str = Field(default="💳 Тарифы и оплата", alias="BTN_PLANS")
 
+    # Ответ бота: суффикс (provider, model) — для отладки; в проде обычно false
+    show_llm_debug_in_reply: bool = Field(default=False, alias="SHOW_LLM_DEBUG_IN_REPLY")
+
     # Internal testing
     internal_test_mode: bool = Field(default=True, alias="INTERNAL_TEST_MODE")
     internal_whitelist_ids: str = Field(default="", alias="INTERNAL_WHITELIST_IDS")
+
+    # Метрики: события в БД + отчёт в Telegram
+    metrics_enabled: bool = Field(default=True, alias="METRICS_ENABLED")
+    metrics_report_enabled: bool = Field(default=False, alias="METRICS_REPORT_ENABLED")
+    metrics_report_chat_id: str = Field(default="", alias="METRICS_REPORT_CHAT_ID")
+    metrics_report_hour_utc: int = Field(default=8, ge=0, le=23, alias="METRICS_REPORT_HOUR_UTC")
+    metrics_report_on_start: bool = Field(default=False, alias="METRICS_REPORT_ON_START")
+    metrics_internal_token: str = Field(default="", alias="METRICS_INTERNAL_TOKEN")
 
     # HTTP API (вебхуки ЮKassa)
     billing_http_enabled: bool = Field(default=True, alias="BILLING_HTTP_ENABLED")
