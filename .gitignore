@@ -1,6 +1,15 @@
 .DS_Store
 .cursor/
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+
 # Секреты и локальная конфигурация
 .env
 .env.local
