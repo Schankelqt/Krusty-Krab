@@ -88,6 +88,7 @@
 
 - [ ] Поднят **OpenClaw Gateway**, в конфиге включён **`POST /v1/responses`** (см. [документацию OpenClaw](https://docs.openclaw.ai/gateway/openresponses-http-api.md)).
 - [ ] В `.env`: **`PRIMARY_PROVIDER=openclaw`**, **`OPENCLAW_URL`**, **`OPENCLAW_API_KEY`**, при необходимости **`OPENCLAW_MODEL`**, **`OPENCLAW_AGENT_ID`**.
+- [ ] Автоустановка Docker + Gateway + подсказки по `.env`: **[`Server-Install.md`](./Server-Install.md)** (`scripts/install-server.sh`, `scripts/openclaw-gateway-bootstrap.sh`).
 
 ### Вариант B — OpenAI API
 

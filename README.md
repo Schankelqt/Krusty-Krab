@@ -9,7 +9,8 @@
 3. Укажите в `.env` `ADMIN_IDS` (ваш Telegram user id) и при внутреннем тесте — `INTERNAL_WHITELIST_IDS`.
 4. Команда **`/admin`** — панель настроек (лимиты, уведомления, whitelist без деплоя).
 
-Подробный чеклист: [`документация/Setup-Guide.md`](документация/Setup-Guide.md). Продуктовая логика: [`документация/MVP-Product-Logic.md`](документация/MVP-Product-Logic.md).
+Подробный чеклист: [`документация/Setup-Guide.md`](документация/Setup-Guide.md). Продуктовая логика: [`документация/MVP-Product-Logic.md`](документация/MVP-Product-Logic.md).  
+Установка на VPS с Docker и **OpenClaw Gateway**: [`документация/Server-Install.md`](документация/Server-Install.md) (`sudo bash scripts/install-server.sh`).
 
 ## Возможности
 

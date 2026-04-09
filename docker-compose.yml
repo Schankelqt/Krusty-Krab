@@ -24,6 +24,9 @@ services:
     build: .
     env_file: .env
     depends_on: [db, redis]
+    # OpenClaw на хосте (порт 18789): из контейнера бота — host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8080:8080"
     restart: unless-stopped
