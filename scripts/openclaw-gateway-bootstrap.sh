@@ -88,11 +88,28 @@ docker compose run --rm --no-deps --entrypoint node openclaw-gateway \
   "[{\"path\":\"gateway.mode\",\"value\":\"local\"},{\"path\":\"gateway.bind\",\"value\":\"${OPENCLAW_GATEWAY_BIND}\"},{\"path\":\"gateway.controlUi.allowedOrigins\",\"value\":[\"http://localhost:${OPENCLAW_GATEWAY_PORT}\",\"http://127.0.0.1:${OPENCLAW_GATEWAY_PORT}\"]}]" \
   >/dev/null 2>&1 || true
 
+echo "==> HTTP OpenResponses (POST /v1/responses) + shared-secret auth для бота"
+GATEWAY_HTTP_JSON="$(
+  OPENCLAW_GATEWAY_TOKEN="$OPENCLAW_GATEWAY_TOKEN" python3 -c '
+import json, os
+t = os.environ.get("OPENCLAW_GATEWAY_TOKEN", "")
+print(json.dumps([
+  {"path": "gateway.http.endpoints.responses.enabled", "value": True},
+  {"path": "gateway.auth.mode", "value": "token"},
+  {"path": "gateway.auth.token", "value": t},
+]))
+'
+)"
+docker compose run --rm --no-deps --entrypoint node openclaw-gateway \
+  dist/index.js config set --batch-json "$GATEWAY_HTTP_JSON" \
+  >/dev/null 2>&1 || true
+
 echo "==> Старт openclaw-gateway"
 docker compose up -d openclaw-gateway
 
 echo ""
 echo "Gateway: http://127.0.0.1:${OPENCLAW_GATEWAY_PORT}/"
-echo "Токен (Bearer для Krusty OPENCLAW_API_KEY): ${OPENCLAW_GATEWAY_TOKEN}"
-echo "В .env бота укажите: OPENCLAW_URL=http://host.docker.internal:${OPENCLAW_GATEWAY_PORT}"
-echo "Включите HTTP OpenResponses (POST /v1/responses) в конфиге Gateway — см. https://docs.openclaw.ai/gateway/openresponses-http-api"
+echo "Токен (Bearer → OPENCLAW_API_KEY в .env бота Clawd): ${OPENCLAW_GATEWAY_TOKEN}"
+echo "В .env бота: OPENCLAW_URL=http://host.docker.internal:${OPENCLAW_GATEWAY_PORT}"
+echo "Проверка: curl -fsS -H \"Authorization: Bearer \${OPENCLAW_GATEWAY_TOKEN}\" http://127.0.0.1:${OPENCLAW_GATEWAY_PORT}/v1/models"
+echo "Модель/бэкенд LLM в Gateway настраивается в UI или CLI OpenClaw (Ollama, облачные API и т.д.)."

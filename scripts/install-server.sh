@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 # Полная подготовка VPS (Ubuntu/Debian): Docker, клон OpenClaw, bootstrap Gateway,
-# опционально клон Krusty-Krab и подсказки по .env.
+# опционально клон репозитория бота (Clawd) и подсказки по .env.
 #
 # Запуск: sudo bash scripts/install-server.sh
-# Или из уже клонированного Krusty-Krab: sudo bash ./scripts/install-server.sh
+# Или из уже клонированного Clawd: sudo bash ./scripts/install-server.sh
 #
 # Переменные окружения:
 #   OPENCLAW_ROOT=/opt/openclaw
 #   OPENCLAW_REPO=https://github.com/openclaw/openclaw.git
-#   KRUSTY_REPO=https://github.com/YOU/Krusty-Krab.git  (если хотите клон в /opt/krusty-krab)
-#   KRUSTY_ROOT=/opt/krusty-krab
-#   SKIP_OPENCLAW=1  — только Docker + опционально Krusty
-#   SKIP_KRUSTY_CLONE=1
+#   CLAWD_REPO / KRUSTY_REPO — URL git бота (клон в CLAWD_ROOT или KRUSTY_ROOT)
+#   CLAWD_ROOT=/opt/clawd  (устаревшее имя: KRUSTY_ROOT)
+#   SKIP_OPENCLAW=1  — только Docker + опционально клон бота
+#   SKIP_KRUSTY_CLONE=1 / SKIP_CLAWD_CLONE=1 — не клонировать бота
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Корень Krusty-Krab только если скрипт лежит в scripts/ этого репозитория
+# Корень репозитория бота, если скрипт лежит в scripts/
 REPO_ROOT=""
 if [[ -f "$SCRIPT_DIR/../docker-compose.yml" && -f "$SCRIPT_DIR/../bot/main.py" ]]; then
   REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -25,12 +25,13 @@ BOOTSTRAP_SCRIPT="${BOOTSTRAP_SCRIPT:-$SCRIPT_DIR/openclaw-gateway-bootstrap.sh}
 
 OPENCLAW_ROOT="${OPENCLAW_ROOT:-/opt/openclaw}"
 OPENCLAW_REPO="${OPENCLAW_REPO:-https://github.com/openclaw/openclaw.git}"
-KRUSTY_ROOT="${KRUSTY_ROOT:-/opt/krusty-krab}"
-KRUSTY_REPO="${KRUSTY_REPO:-}"
+CLAWD_ROOT="${CLAWD_ROOT:-${KRUSTY_ROOT:-/opt/clawd}}"
+CLAWD_REPO="${CLAWD_REPO:-${KRUSTY_REPO:-}}"
+SKIP_CLAWD_CLONE="${SKIP_CLAWD_CLONE:-${SKIP_KRUSTY_CLONE:-}}"
 
-if [[ "${SKIP_OPENCLAW:-0}" != "1" && "${SKIP_KRUSTY_CLONE:-0}" != "1" && -z "$KRUSTY_REPO" && -n "$REPO_ROOT" ]]; then
+if [[ "${SKIP_OPENCLAW:-0}" != "1" && "${SKIP_CLAWD_CLONE:-0}" != "1" && -z "$CLAWD_REPO" && -n "$REPO_ROOT" ]]; then
   if git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    KRUSTY_REPO="$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null || true)"
+    CLAWD_REPO="$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null || true)"
   fi
 fi
 
@@ -54,12 +55,12 @@ apt_get() {
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "==> Установка Docker (официальный скрипт get.docker.com)"
-  apt_get ca-certificates curl git
+  apt_get ca-certificates curl git python3
   curl -fsSL https://get.docker.com | sh
   systemctl enable --now docker || true
 else
   echo "==> Docker уже установлен"
-  apt_get ca-certificates curl git || true
+  apt_get ca-certificates curl git python3 || true
 fi
 
 if [[ "${SKIP_OPENCLAW:-0}" != "1" ]]; then
@@ -82,26 +83,27 @@ if [[ "${SKIP_OPENCLAW:-0}" != "1" ]]; then
   bash "$BOOTSTRAP_SCRIPT" "$OPENCLAW_ROOT"
 fi
 
-if [[ "${SKIP_KRUSTY_CLONE:-0}" != "1" && -n "$KRUSTY_REPO" ]]; then
-  echo "==> Клон Krusty-Krab → $KRUSTY_ROOT"
-  if [[ -d "$KRUSTY_ROOT/.git" ]]; then
-    git -C "$KRUSTY_ROOT" pull --ff-only || true
+if [[ "${SKIP_CLAWD_CLONE:-0}" != "1" && -n "$CLAWD_REPO" ]]; then
+  echo "==> Клон бота (Clawd) → $CLAWD_ROOT"
+  if [[ -d "$CLAWD_ROOT/.git" ]]; then
+    git -C "$CLAWD_ROOT" pull --ff-only || true
   else
-    mkdir -p "$(dirname "$KRUSTY_ROOT")"
-    rm -rf "$KRUSTY_ROOT"
-    git clone --depth 1 "$KRUSTY_REPO" "$KRUSTY_ROOT"
+    mkdir -p "$(dirname "$CLAWD_ROOT")"
+    rm -rf "$CLAWD_ROOT"
+    git clone --depth 1 "$CLAWD_REPO" "$CLAWD_ROOT"
   fi
   echo "==> Шаблон .env"
-  if [[ ! -f "$KRUSTY_ROOT/.env" ]]; then
-    cp "$KRUSTY_ROOT/.env.example" "$KRUSTY_ROOT/.env" || true
+  if [[ ! -f "$CLAWD_ROOT/.env" ]]; then
+    cp "$CLAWD_ROOT/.env.example" "$CLAWD_ROOT/.env" || true
   fi
   echo ""
-  echo "--- Дальше в $KRUSTY_ROOT/.env заполните BOT_TOKEN, DATABASE_URL, REDIS_URL, ключи ЮKassa и т.д."
+  echo "--- Дальше в $CLAWD_ROOT/.env заполните BOT_TOKEN, DATABASE_URL, REDIS_URL, ключи ЮKassa и т.д."
   echo "--- Для Docker-сборки бота укажите (OpenClaw на том же хосте):"
   echo "    PRIMARY_PROVIDER=openclaw"
   echo "    OPENCLAW_URL=http://host.docker.internal:18789"
   echo "    OPENCLAW_API_KEY=<тот же токен, что вывел скрипт OpenClaw>"
-  echo "--- Запуск: cd $KRUSTY_ROOT && docker compose --env-file .env up -d --build"
+  echo "--- Ollama на этом же хосте: docker compose --profile ollama; в .env бота OLLAMA_BASE_URL=http://ollama:11434"
+  echo "--- Запуск: cd $CLAWD_ROOT && docker compose --env-file .env up -d --build"
 elif [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/docker-compose.yml" ]]; then
   echo ""
   echo "--- Текущий репозиторий: $REPO_ROOT"

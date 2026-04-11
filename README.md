@@ -1,4 +1,4 @@
-# Krusty-Krab — Telegram SaaS-бот с подпиской и сеткой моделей
+# Clawd — Telegram SaaS-бот с подпиской и сеткой моделей
 
 Персональный AI-ассистент в Telegram: триал, мягкий режим после триала, оплата через ЮKassa, пакеты токенов по линиям **GPT / Claude / Gemini**, лимиты и метрики.
 
@@ -10,7 +10,7 @@
 4. Команда **`/admin`** — панель настроек (лимиты, уведомления, whitelist без деплоя).
 
 Подробный чеклист: [`документация/Setup-Guide.md`](документация/Setup-Guide.md). Продуктовая логика: [`документация/MVP-Product-Logic.md`](документация/MVP-Product-Logic.md).  
-Установка на VPS с Docker и **OpenClaw Gateway**: [`документация/Server-Install.md`](документация/Server-Install.md) (`sudo bash scripts/install-server.sh`).
+Установка на VPS с Docker и **OpenClaw Gateway**: [`документация/Server-Install.md`](документация/Server-Install.md) (`sudo bash scripts/install-server.sh`). Профиль **Ollama** в `docker compose`: `--profile ollama`.
 
 ## Возможности
 

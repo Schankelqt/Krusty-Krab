@@ -1,5 +1,6 @@
 # Локально и на сервере: docker compose --env-file .env up -d
-# Пока без сборки bot/worker — только инфраструктура под OpenClaw.md
+# Опционально Ollama: docker compose --env-file .env --profile ollama up -d
+# В .env для контейнера бота: OLLAMA_BASE_URL=http://ollama:11434
 
 services:
   db:
@@ -22,13 +23,24 @@ services:
 
   bot:
     build: .
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     depends_on: [db, redis]
     # OpenClaw на хосте (порт 18789): из контейнера бота — host.docker.internal
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
       - "8080:8080"
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: [ollama]
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
     restart: unless-stopped
   #
   # worker:
@@ -46,3 +58,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  ollama_data:

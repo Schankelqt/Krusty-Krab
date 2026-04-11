@@ -73,10 +73,10 @@
 
 ## 6. LLM: Ollama (триал / fallback)
 
-- [ ] Установлен **Ollama**, запущен сервис.
-- [ ] В `.env`: **`OLLAMA_BASE_URL`** (локально часто `http://localhost:11434`; из Docker на хост — `http://host.docker.internal:11434` на macOS/Windows или IP хоста на Linux).
-- [ ] В `.env`: **`OLLAMA_MODEL`** — имя модели, **уже скачанной** в Ollama (`ollama pull <имя>`).
-- [ ] Для триала/фолбэка: **`TRIAL_PROVIDER=ollama`**, **`FALLBACK_PROVIDER=ollama`** (или `mock` для теста без железа).
+- [ ] Установлен **Ollama**, запущен сервис — **или** сервис `ollama` в Docker: `docker compose --profile ollama up -d`, в `.env` бота **`OLLAMA_BASE_URL=http://ollama:11434`**.
+- [ ] В `.env`: **`OLLAMA_BASE_URL`** (локально на хосте часто `http://localhost:11434`; бот в Docker, Ollama на хосте — `http://host.docker.internal:11434` на macOS/Windows или IP хоста на Linux).
+- [ ] В `.env`: **`OLLAMA_MODEL`** — имя модели, **уже скачанной** в Ollama (`ollama pull <имя>` или `docker compose exec ollama ollama pull <имя>`).
+- [ ] Для триала/фолбэка: **`TRIAL_PROVIDER=ollama`**, **`FALLBACK_PROVIDER=ollama`** (или **`mock`** для теста без Ollama).
 
 ---
 
@@ -104,7 +104,7 @@
 
 ### Вариант C — только mock (разработка)
 
-- [ ] **`PRIMARY_PROVIDER=mock`**, **`FALLBACK_PROVIDER=mock`** — без внешних сервисов.
+- [ ] **`PRIMARY_PROVIDER=mock`**, **`FALLBACK_PROVIDER=mock`**, **`TRIAL_PROVIDER=mock`** — без Ollama и облачных API (удобно с `docker compose` и шаблоном `.env.example`).
 
 ---
 

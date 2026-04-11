@@ -1,22 +1,22 @@
 # Установка на сервер (Docker, OpenClaw Gateway, бот)
 
-Один скрипт готовит **Ubuntu/Debian** VPS: ставит Docker, клонирует [OpenClaw](https://github.com/openclaw/openclaw), поднимает **Gateway** из образа **GHCR** (без сборки), опционально клонирует Krusty-Krab.
+Один скрипт готовит **Ubuntu/Debian** VPS: ставит Docker, клонирует [OpenClaw](https://github.com/openclaw/openclaw), поднимает **Gateway** из образа **GHCR** (без сборки), опционально клонирует репозиторий бота **Clawd**.
 
 ## Одной командой (рекомендуется)
 
 После пуша репозитория в GitHub (подставьте свой `owner/repo` и ветку). Нужны **оба** скрипта в одной папке:
 
 ```bash
-BASE="https://raw.githubusercontent.com/OWNER/Krusty-Krab/main/scripts"
-curl -fsSL "$BASE/install-server.sh" -o /tmp/kk-install.sh
+BASE="https://raw.githubusercontent.com/OWNER/Clawd/main/scripts"
+curl -fsSL "$BASE/install-server.sh" -o /tmp/clawd-install.sh
 curl -fsSL "$BASE/openclaw-gateway-bootstrap.sh" -o /tmp/openclaw-gateway-bootstrap.sh
-chmod +x /tmp/kk-install.sh /tmp/openclaw-gateway-bootstrap.sh
-sudo BOOTSTRAP_SCRIPT=/tmp/openclaw-gateway-bootstrap.sh KRUSTY_REPO=https://github.com/OWNER/Krusty-Krab.git bash /tmp/kk-install.sh
+chmod +x /tmp/clawd-install.sh /tmp/openclaw-gateway-bootstrap.sh
+sudo BOOTSTRAP_SCRIPT=/tmp/openclaw-gateway-bootstrap.sh CLAWD_REPO=https://github.com/OWNER/Clawd.git bash /tmp/clawd-install.sh
 ```
 
-Без `KRUSTY_REPO` скрипт поднимет только Docker и OpenClaw; репозиторий бота клонируйте отдельно.
+Без `CLAWD_REPO` (или устаревшего `KRUSTY_REPO`) скрипт поднимет только Docker и OpenClaw; репозиторий бота клонируйте отдельно.
 
-Если репозиторий приватный — склонируйте Krusty-Krab на сервер и выполните из корня проекта (URL для клона бота подтянется из `git remote`):
+Если репозиторий приватный — склонируйте Clawd на сервер и выполните из корня проекта (URL для клона бота подтянется из `git remote`):
 
 ```bash
 sudo bash scripts/install-server.sh
@@ -28,10 +28,10 @@ sudo bash scripts/install-server.sh
 |------------|--------------|------------|
 | `OPENCLAW_ROOT` | `/opt/openclaw` | Каталог клона OpenClaw |
 | `OPENCLAW_REPO` | `https://github.com/openclaw/openclaw.git` | Источник OpenClaw |
-| `KRUSTY_ROOT` | `/opt/krusty-krab` | Куда клонировать бота |
-| `KRUSTY_REPO` | авто из `git remote` при запуске из клона | URL репозитория бота |
-| `SKIP_OPENCLAW=1` | — | Только Docker (+ опционально Krusty) |
-| `SKIP_KRUSTY_CLONE=1` | — | Не клонировать бота |
+| `CLAWD_ROOT` | `/opt/clawd` | Куда клонировать бота (`KRUSTY_ROOT` — устаревший алиас) |
+| `CLAWD_REPO` / `KRUSTY_REPO` | авто из `git remote` при запуске из клона | URL репозитория бота |
+| `SKIP_OPENCLAW=1` | — | Только Docker (+ опционально бот) |
+| `SKIP_CLAWD_CLONE=1` / `SKIP_KRUSTY_CLONE=1` | — | Не клонировать бота |
 | `OPENCLAW_CONFIG_DIR` | `/opt/openclaw-data/config` при `install-server` | Данные Gateway |
 | `OPENCLAW_WORKSPACE_DIR` | `/opt/openclaw-data/workspace` | Workspace Gateway |
 
@@ -46,7 +46,7 @@ export OPENCLAW_CONFIG_DIR=/opt/openclaw-data/config
 export OPENCLAW_WORKSPACE_DIR=/opt/openclaw-data/workspace
 sudo mkdir -p "$OPENCLAW_CONFIG_DIR" "$OPENCLAW_WORKSPACE_DIR"
 sudo chown -R 1000:1000 "$OPENCLAW_CONFIG_DIR" "$OPENCLAW_WORKSPACE_DIR"
-sudo bash /path/to/Krusty-Krab/scripts/openclaw-gateway-bootstrap.sh /opt/openclaw
+sudo bash /path/to/Clawd/scripts/openclaw-gateway-bootstrap.sh /opt/openclaw
 ```
 
 Официальный интерактивный путь (мастер с вопросами по провайдерам):
@@ -77,9 +77,21 @@ OPENCLAW_API_KEY=<OPENCLAW_GATEWAY_TOKEN из вывода скрипта или
 curl -fsS http://127.0.0.1:18789/healthz
 ```
 
+## Ollama рядом с ботом (Docker Compose)
+
+Чтобы триал/фолбэк шли в локальную модель без установки Ollama на хост вручную:
+
+```bash
+docker compose --env-file .env --profile ollama up -d --build
+```
+
+В `.env` бота укажите `OLLAMA_BASE_URL=http://ollama:11434`, `TRIAL_PROVIDER=ollama`, `FALLBACK_PROVIDER=ollama`, модель — `OLLAMA_MODEL` (после первого старта: `docker compose exec ollama ollama pull <имя>`).
+
+**Связка OpenClaw → Ollama:** модель и провайдер задаются в конфигурации **OpenClaw Gateway** (веб-UI или CLI после `onboard`): укажите там Ollama как бэкенд (хост `host.docker.internal:11434`, если Ollama в compose на том же сервере, либо имя сервиса `ollama`, если Gateway тоже в общей Docker-сети — зависит от того, как вы подняли Gateway). Бот к LLM ходит только через свой роутер (`openclaw` / `openai` / …); OpenClaw сам проксирует запросы к выбранному вами бэкенду.
+
 ## HTTP OpenResponses
 
-Бот ходит в Gateway по **`POST /v1/responses`**. Включите endpoint в конфигурации Gateway по [документации OpenResponses](https://docs.openclaw.ai/gateway/openresponses-http-api).
+Бот ходит в Gateway по **`POST /v1/responses`**. Скрипт `scripts/openclaw-gateway-bootstrap.sh` включает `gateway.http.endpoints.responses.enabled` и режим `gateway.auth.mode=token`. Подробности: [документация OpenResponses](https://docs.openclaw.ai/gateway/openresponses-http-api).
 
 ## Обновление OpenClaw
 
