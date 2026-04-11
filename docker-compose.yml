@@ -1,6 +1,9 @@
 # Локально и на сервере: docker compose --env-file .env up -d
 # Опционально Ollama: docker compose --env-file .env --profile ollama up -d
 # В .env для контейнера бота: OLLAMA_BASE_URL=http://ollama:11434
+#
+# Postgres: POSTGRES_PASSWORD в .env должен совпадать с паролем в DATABASE_URL (после user:).
+# Если сменили пароль после первого запуска — удалите volume pgdata и поднимите заново.
 
 services:
   db:
@@ -8,7 +11,7 @@ services:
     environment:
       POSTGRES_DB: assistant_db
       POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
