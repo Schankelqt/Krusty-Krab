@@ -31,12 +31,20 @@ if [[ -f .env ]]; then
 fi
 
 echo "==> OpenClaw onboard: Ollama $OLLAMA_URL, модель $MODEL"
+# --skip-health: в одноразовом контейнере нет запущенного gateway на 127.0.0.1:18789 — без флага onboard падает после успешного обновления конфига.
+set +e
 docker compose run --rm --no-deps --entrypoint node openclaw-gateway \
   dist/index.js onboard --non-interactive --auth-choice ollama \
   --custom-base-url "$OLLAMA_URL" \
   --custom-model-id "$MODEL" \
-  --accept-risk --skip-channels
+  --accept-risk --skip-channels --skip-health
+onboard_rc=$?
+set -e
+if [[ "$onboard_rc" -ne 0 ]]; then
+  echo "WARN: onboard exit $onboard_rc — если выше было «Config overwrite» / «Default Ollama model», конфиг уже применён." >&2
+fi
 
+echo "==> Перезапуск openclaw-gateway (подхватить openclaw.json)"
 docker compose up -d openclaw-gateway
 echo "==> Перезапущен openclaw-gateway. Проверка с хоста:"
 echo "    curl -fsS -H \"Authorization: Bearer \$OPENCLAW_GATEWAY_TOKEN\" http://127.0.0.1:18789/v1/models"
