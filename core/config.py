@@ -38,8 +38,8 @@ class Settings(BaseSettings):
     # LLM routing
     llm_mode: Literal["auto", "primary", "fallback"] = Field(default="auto", alias="LLM_MODE")
     primary_provider: Literal["openai", "openclaw", "mock"] = Field(default="mock", alias="PRIMARY_PROVIDER")
-    fallback_provider: Literal["ollama", "mock"] = Field(default="mock", alias="FALLBACK_PROVIDER")
-    trial_provider: Literal["ollama", "mock"] = Field(default="mock", alias="TRIAL_PROVIDER")
+    fallback_provider: Literal["ollama", "mock", "openclaw"] = Field(default="mock", alias="FALLBACK_PROVIDER")
+    trial_provider: Literal["ollama", "mock", "openclaw"] = Field(default="mock", alias="TRIAL_PROVIDER")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4.1-mini", alias="OPENAI_MODEL")
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")

@@ -31,7 +31,7 @@ router = Router()
 
 def _trial_provider_label(settings) -> str:
     p = settings.trial_provider
-    return {"ollama": "Ollama", "mock": "mock"}.get(p, p)
+    return {"ollama": "Ollama", "mock": "mock", "openclaw": "OpenClaw"}.get(p, p)
 
 
 @router.message(Command("tokens"))
