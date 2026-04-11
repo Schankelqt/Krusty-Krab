@@ -40,6 +40,28 @@ def paid_period_boundaries_missing(user: User) -> bool:
     )
 
 
+def _dt_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def paid_subscription_period_expired(user: User, now: datetime) -> bool:
+    """Оплаченный флаг есть, даты заданы, конец периода уже прошёл (UTC)."""
+    if not user.is_active or user.subscription_period_end is None:
+        return False
+    return now >= _dt_utc(user.subscription_period_end)
+
+
+def paid_subscription_period_not_started(user: User, now: datetime) -> bool:
+    """Начало периода в будущем (редко: сдвиг часов / отложенный старт по датам)."""
+    if not user.is_active or user.subscription_period_start is None:
+        return False
+    if paid_subscription_period_expired(user, now):
+        return False
+    return now < _dt_utc(user.subscription_period_start)
+
+
 def trial_active(user: User, pl: ProductLimits, now: datetime) -> bool:
     if user.is_active or user.trial_started_at is None:
         return False

@@ -31,7 +31,8 @@ async def admin_grant(message: Message) -> None:
             "<code>/admin_grant &lt;telegram_user_id&gt;</code>\n"
             "<code>/admin_grant &lt;id&gt; basic|standard|pro</code>\n"
             "<code>/admin_grant &lt;id&gt; basic|standard|pro gpt|claude|gemini</code>\n"
-            "Четвёртым аргументом можно <code>-</code> / <code>none</code> / <code>clear</code> — сбросить линию API.",
+            "Четвёртым аргументом можно <code>-</code> / <code>none</code> / <code>clear</code> — сбросить линию API.\n\n"
+            "Удобнее: <code>/admin_grant_ui</code> или кнопка в <code>/admin</code> — id один раз, дальше кнопки.",
         )
         return
     if len(parts) > 4:

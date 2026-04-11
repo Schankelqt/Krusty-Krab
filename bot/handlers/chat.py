@@ -12,6 +12,8 @@ from services.access_policy import (
     maybe_send_token_warnings,
     paid_period_active,
     paid_period_boundaries_missing,
+    paid_subscription_period_expired,
+    paid_subscription_period_not_started,
     resolve_chat_access,
     trial_active,
 )
@@ -21,7 +23,7 @@ from services.limits_service import LimitsService
 from services.llm_router import LLMRouter
 from services.metrics_service import record_event
 from services.usage_service import UsageService
-from services.subscription_service import activate_paid_subscription
+from services.subscription_service import activate_paid_subscription, revoke_paid_subscription
 from services.user_service import UserService
 
 router = Router()
@@ -227,20 +229,37 @@ async def _handle_trial_button(message: Message) -> None:
             if paid_period_active(user, now):
                 await record_event("trial_button_already_paid_active", user_id=message.from_user.id)
                 await message.answer("У вас уже активна оплаченная подписка в текущем периоде.")
-            elif paid_period_boundaries_missing(user):
+                return
+            if paid_period_boundaries_missing(user):
                 await activate_paid_subscription(session, user.id)
                 await session.commit()
                 await record_event("trial_button_repaired_missing_period", user_id=message.from_user.id)
                 await message.answer(
                     "Обновили биллинговый период под вашу подписку. Можете пользоваться ассистентом обычными сообщениями в чат."
                 )
-            else:
+                return
+            if paid_subscription_period_expired(user, now) and user.trial_started_at is None:
+                await revoke_paid_subscription(session, user.id)
+                await session.commit()
+                await session.refresh(user)
+                await record_event(
+                    "trial_button_revoked_expired_paid_for_trial",
+                    user_id=message.from_user.id,
+                )
+            elif paid_subscription_period_not_started(user, now):
+                await record_event("trial_button_paid_period_future", user_id=message.from_user.id)
+                await message.answer(
+                    "По датам в UTC период подписки ещё не начался. Если это ошибка — напишите администратору."
+                )
+                return
+            elif user.is_active:
                 await record_event("trial_button_paid_period_inactive", user_id=message.from_user.id)
                 await message.answer(
-                    "Платный период сейчас не в активном окне (например, срок по датам истёк). "
-                    "Продлите подписку в «Тарифы и оплата» или воспользуйтесь мягким режимом в пределах дневного лимита."
+                    "Срок выданной подписки по датам истёк. Продлите доступ (администратор: "
+                    "<code>/admin_grant</code> или <code>/admin_grant_ui</code>) или оформите тариф, "
+                    "когда будет ЮKassa. Писать в чат можно в мягком режиме в пределах дневного лимита."
                 )
-            return
+                return
         if trial_active(user, pl, now):
             await record_event("trial_button_already_in_trial", user_id=message.from_user.id)
             await message.answer(
