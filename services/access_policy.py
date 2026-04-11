@@ -33,6 +33,13 @@ def paid_period_active(user: User, now: datetime) -> bool:
     return user.subscription_period_start <= now < user.subscription_period_end
 
 
+def paid_period_boundaries_missing(user: User) -> bool:
+    """Оплаченный флаг без дат периода — неконсистентное состояние (старые данные / ручные правки)."""
+    return user.is_active and (
+        user.subscription_period_start is None or user.subscription_period_end is None
+    )
+
+
 def trial_active(user: User, pl: ProductLimits, now: datetime) -> bool:
     if user.is_active or user.trial_started_at is None:
         return False

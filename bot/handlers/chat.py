@@ -11,6 +11,7 @@ from core.database import SessionLocal
 from services.access_policy import (
     maybe_send_token_warnings,
     paid_period_active,
+    paid_period_boundaries_missing,
     resolve_chat_access,
     trial_active,
 )
@@ -20,6 +21,7 @@ from services.limits_service import LimitsService
 from services.llm_router import LLMRouter
 from services.metrics_service import record_event
 from services.usage_service import UsageService
+from services.subscription_service import activate_paid_subscription
 from services.user_service import UserService
 
 router = Router()
@@ -225,10 +227,18 @@ async def _handle_trial_button(message: Message) -> None:
             if paid_period_active(user, now):
                 await record_event("trial_button_already_paid_active", user_id=message.from_user.id)
                 await message.answer("У вас уже активна оплаченная подписка в текущем периоде.")
-            else:
-                await record_event("trial_button_paid_no_period", user_id=message.from_user.id)
+            elif paid_period_boundaries_missing(user):
+                await activate_paid_subscription(session, user.id)
+                await session.commit()
+                await record_event("trial_button_repaired_missing_period", user_id=message.from_user.id)
                 await message.answer(
-                    "Аккаунт помечен как оплаченный, но биллинговый период не задан. Обратитесь к администратору."
+                    "Обновили биллинговый период под вашу подписку. Можете пользоваться ассистентом обычными сообщениями в чат."
+                )
+            else:
+                await record_event("trial_button_paid_period_inactive", user_id=message.from_user.id)
+                await message.answer(
+                    "Платный период сейчас не в активном окне (например, срок по датам истёк). "
+                    "Продлите подписку в «Тарифы и оплата» или воспользуйтесь мягким режимом в пределах дневного лимита."
                 )
             return
         if trial_active(user, pl, now):

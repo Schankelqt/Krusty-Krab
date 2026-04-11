@@ -3,12 +3,13 @@ import logging
 
 import uvicorn
 from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from redis.asyncio import from_url as redis_from_url
 
 from api.app import create_app
-from bot.handlers import admin, admin_panel, chat, start, system_errors
+from bot.handlers import admin, admin_grant_wizard, admin_panel, chat, start, system_errors
 from core.config import get_settings
 from core.database import engine
 from models import Base
@@ -43,9 +44,11 @@ async def _subscription_reminder_loop(bot: Bot) -> None:
 async def run_bot() -> None:
     settings = get_settings()
     bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    dp = Dispatcher()
+    storage = RedisStorage.from_url(settings.redis_url)
+    dp = Dispatcher(storage=storage)
     dp.include_router(system_errors.router)
     dp.include_router(admin.router)
+    dp.include_router(admin_grant_wizard.router)
     dp.include_router(admin_panel.router)
     dp.include_router(start.router)
     dp.include_router(chat.router)

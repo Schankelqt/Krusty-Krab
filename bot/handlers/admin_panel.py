@@ -2,7 +2,10 @@
 
 from aiogram import F, Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+
+from bot.handlers.admin_grant_wizard import AdminGrantWizard
 
 from core.config import get_settings
 from core.database import SessionLocal
@@ -38,6 +41,7 @@ def _main_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="📊 Сводка", callback_data="adm:summary")],
+            [InlineKeyboardButton(text="🎁 Выдать подписку (кнопки)", callback_data="adm:grant_ui")],
             [InlineKeyboardButton(text="⚙️ Лимиты продукта", callback_data="adm:limits")],
             [InlineKeyboardButton(text="🔔 Уведомления", callback_data="adm:notif")],
             [InlineKeyboardButton(text="🛡 Whitelist (тест)", callback_data="adm:wl")],
@@ -54,9 +58,27 @@ async def cmd_admin_panel(message: Message) -> None:
     await message.answer(
         "<b>Панель администратора</b>\n"
         "Настройки ниже хранятся в базе и перекрывают значения из .env до сброса.\n"
-        "Команды <code>/admin_grant</code>, <code>/admin_revoke</code>, <code>/report_now</code> без изменений.",
+        "Команды <code>/admin_grant</code>, <code>/admin_revoke</code>, <code>/report_now</code> без изменений.\n"
+        "Удобная выдача: <code>/admin_grant_ui</code> или кнопка ниже.",
         reply_markup=_main_kb(),
     )
+
+
+@router.callback_query(F.data == "adm:grant_ui")
+async def adm_grant_ui(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _admin_ok(callback.from_user.id):
+        await callback.answer("Нет доступа.", show_alert=True)
+        return
+    await state.set_state(AdminGrantWizard.waiting_user_id)
+    text = (
+        "<b>Выдача подписки</b>\n"
+        "Отправьте <b>одним сообщением</b> числовой Telegram user id "
+        "(целевой пользователь должен хотя бы раз написать боту <code>/start</code>).\n\n"
+        "<code>/admin_grant_ui</code> — то же самое из чата."
+    )
+    if callback.message:
+        await callback.message.edit_text(text)
+    await callback.answer()
 
 
 @router.callback_query(F.data == "adm:home")
