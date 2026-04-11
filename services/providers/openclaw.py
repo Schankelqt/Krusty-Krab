@@ -41,16 +41,18 @@ class OpenClawProvider(LLMProvider):
             "model": self.settings.openclaw_model,
             "user": session_user,
             "input": prompt,
+            # Иначе Gateway отдаёт SSE; httpx ждёт тело до конца стрима — «зависание» в боте.
+            "stream": False,
         }
         headers: dict[str, str] = {
             "Authorization": f"Bearer {self.settings.openclaw_api_key}",
             "Content-Type": "application/json",
             "x-openclaw-session-key": session_user,
         }
-        if self.settings.openclaw_agent_id.strip():
-            headers["x-openclaw-agent-id"] = self.settings.openclaw_agent_id.strip()
+        agent_id = self.settings.openclaw_agent_id.strip() or "main"
+        headers["x-openclaw-agent-id"] = agent_id
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=300.0) as client:
             response = await client.post(url, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()

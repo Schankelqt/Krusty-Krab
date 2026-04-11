@@ -5,6 +5,20 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _comma_separated_int_ids(raw: str) -> set[int]:
+    """ADMIN_IDS / whitelist: «123,456», лишние «=» (часто от ADMIN_IDS==… в .env) игнорируем."""
+    out: set[int] = set()
+    for piece in (raw or "").replace(";", ",").split(","):
+        p = piece.strip().lstrip("=").strip()
+        if not p:
+            continue
+        try:
+            out.add(int(p))
+        except ValueError:
+            continue
+    return out
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -97,11 +111,11 @@ class Settings(BaseSettings):
 
     @property
     def admin_id_set(self) -> set[int]:
-        return {int(x.strip()) for x in self.admin_ids.split(",") if x.strip()}
+        return _comma_separated_int_ids(self.admin_ids)
 
     @property
     def internal_whitelist_id_set(self) -> set[int]:
-        return {int(x.strip()) for x in self.internal_whitelist_ids.split(",") if x.strip()}
+        return _comma_separated_int_ids(self.internal_whitelist_ids)
 
     @property
     def metering_primary_providers(self) -> frozenset[str]:

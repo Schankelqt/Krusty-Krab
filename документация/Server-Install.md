@@ -104,6 +104,19 @@ sudo bash /opt/krusty-krab/scripts/openclaw-wire-ollama.sh
 
 **Безопасность:** порт **11434** не должен быть открыт в интернет; ограничьте firewall-ом.
 
+### Таймауты Ollama в OpenClaw
+
+Если в логах gateway видно `Profile ollama:default timed out` или `increase agents.defaults.timeoutSeconds`, увеличьте лимит (слабый VPS + агент с инструментами и длинным контекстом):
+
+```bash
+cd /opt/openclaw
+docker compose run --rm --no-deps --entrypoint node openclaw-gateway \
+  dist/index.js config set agents.defaults.timeoutSeconds 300
+docker compose up -d openclaw-gateway
+```
+
+Проверка `POST /v1/responses` с хоста: в теле JSON укажите **`"stream": false`**, иначе `curl` без обработки SSE будет ждать долго.
+
 ## HTTP OpenResponses
 
 Бот ходит в Gateway по **`POST /v1/responses`**. Скрипт `scripts/openclaw-gateway-bootstrap.sh` включает `gateway.http.endpoints.responses.enabled` и режим `gateway.auth.mode=token`. Подробности: [документация OpenResponses](https://docs.openclaw.ai/gateway/openresponses-http-api).
