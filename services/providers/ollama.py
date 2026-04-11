@@ -10,7 +10,7 @@ class OllamaProvider(LLMProvider):
     def __init__(self) -> None:
         self.settings = get_settings()
 
-    async def generate(self, prompt: str, user_id: int) -> LLMResponse:
+    async def generate(self, prompt: str, user_id: int, *, user=None) -> LLMResponse:
         payload = {"model": self.settings.ollama_model, "prompt": prompt, "stream": False}
         url = f"{self.settings.ollama_base_url.rstrip('/')}/api/generate"
         async with httpx.AsyncClient(timeout=60.0) as client:

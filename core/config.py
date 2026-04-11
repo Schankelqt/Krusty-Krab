@@ -54,6 +54,8 @@ class Settings(BaseSettings):
     openclaw_api_key: str = Field(default="", alias="OPENCLAW_API_KEY")
     openclaw_model: str = Field(default="openclaw", alias="OPENCLAW_MODEL")
     openclaw_agent_id: str = Field(default="", alias="OPENCLAW_AGENT_ID")
+    # В лог бота: длительность POST /v1/responses (мс) — чтобы отделить сеть от работы Gateway/Ollama
+    openclaw_log_timing: bool = Field(default=False, alias="OPENCLAW_LOG_TIMING")
 
     # Limits
     daily_msg_limit_basic: int = Field(default=50, alias="DAILY_MSG_LIMIT_BASIC")
@@ -70,6 +72,7 @@ class Settings(BaseSettings):
     # Reply keyboard (можно переименовать под маркетинг)
     btn_trial: str = Field(default="🪄 Познакомиться с OpenClaw", alias="BTN_TRIAL")
     btn_plans: str = Field(default="💳 Тарифы и оплата", alias="BTN_PLANS")
+    btn_agent_settings: str = Field(default="⚙️ Настройки ассистента", alias="BTN_AGENT_SETTINGS")
 
     # Ответ бота: суффикс (provider, model) — для отладки; в проде обычно false
     show_llm_debug_in_reply: bool = Field(default=False, alias="SHOW_LLM_DEBUG_IN_REPLY")
@@ -79,6 +82,8 @@ class Settings(BaseSettings):
     internal_whitelist_ids: str = Field(default="", alias="INTERNAL_WHITELIST_IDS")
     # Админы (ADMIN_IDS): без лимитов триала/soft/токенов периода — только для отладки; в проде держите false
     admin_skip_llm_limits: bool = Field(default=False, alias="ADMIN_SKIP_LLM_LIMITS")
+    # Пусто — тот же провайдер, что TRIAL_PROVIDER (чтобы не переключаться на PRIMARY=openclaw без Gateway)
+    admin_llm_provider: str = Field(default="", alias="ADMIN_LLM_PROVIDER")
 
     # Метрики: события в БД + отчёт в Telegram
     metrics_enabled: bool = Field(default=True, alias="METRICS_ENABLED")
@@ -118,6 +123,14 @@ class Settings(BaseSettings):
     @property
     def internal_whitelist_id_set(self) -> set[int]:
         return _comma_separated_int_ids(self.internal_whitelist_ids)
+
+    def provider_for_admin_skip_limits(self) -> str:
+        """Канал LLM при ADMIN_SKIP_LLM_LIMITS; по умолчанию = TRIAL_PROVIDER, не PRIMARY_PROVIDER."""
+        raw = (self.admin_llm_provider or "").strip().lower()
+        allowed = frozenset({"openai", "anthropic", "gemini", "openclaw", "ollama", "mock"})
+        if raw in allowed:
+            return raw
+        return self.trial_provider
 
     @property
     def metering_primary_providers(self) -> frozenset[str]:

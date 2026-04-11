@@ -9,6 +9,7 @@ def main_menu_reply_keyboard() -> ReplyKeyboardMarkup:
         keyboard=[
             [KeyboardButton(text=s.btn_trial)],
             [KeyboardButton(text=s.btn_plans)],
+            [KeyboardButton(text=s.btn_agent_settings)],
         ],
         resize_keyboard=True,
     )

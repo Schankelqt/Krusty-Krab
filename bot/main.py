@@ -9,7 +9,7 @@ from aiogram.enums import ParseMode
 from redis.asyncio import from_url as redis_from_url
 
 from api.app import create_app
-from bot.handlers import admin, admin_grant_wizard, admin_panel, chat, start, system_errors
+from bot.handlers import admin, admin_grant_wizard, admin_panel, agent_settings, chat, start, system_errors
 from core.config import get_settings
 from core.database import engine
 from models import Base
@@ -50,6 +50,7 @@ async def run_bot() -> None:
     dp.include_router(admin.router)
     dp.include_router(admin_grant_wizard.router)
     dp.include_router(admin_panel.router)
+    dp.include_router(agent_settings.router)
     dp.include_router(start.router)
     dp.include_router(chat.router)
     if settings.metrics_report_enabled and settings.metrics_report_chat_id.strip():

@@ -60,7 +60,7 @@ class LLMRouter:
             provider_name = await self._get_provider_name(user)
         provider = self.providers[provider_name]
 
-        response = await provider.generate(prompt=prompt, user_id=user.id)
+        response = await provider.generate(prompt=prompt, user_id=user.id, user=user)
 
         if increment_primary_daily and provider_name == self.settings.primary_provider:
             await self.limits.increment_primary(user.id)

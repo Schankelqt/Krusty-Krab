@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, text
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base, TimestampMixin
@@ -18,6 +18,10 @@ class User(Base, TimestampMixin):
     billing_llm_line: Mapped[str | None] = mapped_column(String(16), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
     openclaw_session_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # Персонализация агента (OpenClaw): подмешиваются в input к Gateway
+    agent_display_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    agent_instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Оплаченный биллинговый период: [subscription_period_start, subscription_period_end)
     subscription_period_start: Mapped[datetime | None] = mapped_column(

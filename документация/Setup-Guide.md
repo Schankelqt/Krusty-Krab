@@ -139,6 +139,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_started_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_message_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS openclaw_session_id VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS billing_llm_line VARCHAR(16);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS agent_display_name VARCHAR(128);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS agent_instructions TEXT;
 
 -- payments (если таблицы не было — проще пересоздать БД на пустом окружении)
 CREATE TABLE IF NOT EXISTS payments (

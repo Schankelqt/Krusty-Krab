@@ -95,7 +95,7 @@ async def resolve_chat_access(
         return AccessDecision(
             allowed=True,
             deny_message=None,
-            provider_name=settings.primary_provider,
+            provider_name=settings.provider_for_admin_skip_limits(),
             increment_primary_daily=False,
             increment_trial=False,
             increment_soft_daily=False,

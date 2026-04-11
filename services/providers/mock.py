@@ -4,7 +4,7 @@ from services.providers.base import LLMProvider, LLMResponse
 class MockProvider(LLMProvider):
     provider_name = "mock"
 
-    async def generate(self, prompt: str, user_id: int) -> LLMResponse:
+    async def generate(self, prompt: str, user_id: int, *, user=None) -> LLMResponse:
         safe_prompt = prompt.strip().replace("\n", " ")
         if len(safe_prompt) > 120:
             safe_prompt = safe_prompt[:117] + "..."

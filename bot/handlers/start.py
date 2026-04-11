@@ -103,7 +103,8 @@ async def onb_done(callback: CallbackQuery) -> None:
         "С чего начать:\n\n"
         f"• {settings.btn_trial} — пробный период.\n"
         f"• {settings.btn_plans} — выбор линии модели и пакета токенов.\n"
-        "• /tokens — ваши лимиты.\n\n"
+        "• /tokens — ваши лимиты.\n"
+        f"• {settings.btn_agent_settings} или /agent — настройки ассистента (OpenClaw).\n\n"
         "Пишите обычным текстом в чат, когда доступ открыт."
     )
     await callback.bot.send_message(uid, text, reply_markup=main_menu_reply_keyboard())
@@ -116,7 +117,8 @@ async def _send_main_welcome(message: Message | None, settings) -> None:
         "С чего начать:\n\n"
         f"• {settings.btn_trial} — пробный период.\n"
         f"• {settings.btn_plans} — выбор линии модели и пакета токенов.\n"
-        "• /tokens — ваши лимиты.\n\n"
+        "• /tokens — ваши лимиты.\n"
+        f"• {settings.btn_agent_settings} или /agent — настройки ассистента.\n\n"
         "Пишите обычным текстом в чат, когда доступ открыт."
     )
     await message.answer(text, reply_markup=main_menu_reply_keyboard())
@@ -130,6 +132,7 @@ async def cmd_help(message: Message) -> None:
         "/start — приветствие и меню\n"
         "/help — эта справка\n"
         "/tokens — лимиты (триал / подписка / токены пакета)\n"
+        "/agent — персонализация ассистента (OpenClaw)\n"
         "/admin — панель настроек (только администраторы)\n\n"
-        f"Кнопки: «{settings.btn_trial}», «{settings.btn_plans}»."
+        f"Кнопки: «{settings.btn_trial}», «{settings.btn_plans}», «{settings.btn_agent_settings}»."
     )

@@ -10,7 +10,7 @@ class OpenAIProvider(LLMProvider):
     def __init__(self) -> None:
         self.settings = get_settings()
 
-    async def generate(self, prompt: str, user_id: int) -> LLMResponse:
+    async def generate(self, prompt: str, user_id: int, *, user=None) -> LLMResponse:
         if not self.settings.openai_api_key:
             raise RuntimeError("OPENAI_API_KEY is not set")
 
