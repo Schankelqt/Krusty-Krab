@@ -29,7 +29,14 @@ services:
     env_file:
       - path: .env
         required: false
-    depends_on: [db, redis]
+    depends_on:
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+      ollama:
+        condition: service_started
+        required: false
     # OpenClaw на хосте (порт 18789): из контейнера бота — host.docker.internal
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -42,6 +49,7 @@ services:
     profiles: [ollama]
     volumes:
       - ollama_data:/root/.ollama
+    # Слушает на всех интерфейсах хоста — закройте 11434 в firewall от интернета.
     ports:
       - "11434:11434"
     restart: unless-stopped

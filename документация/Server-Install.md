@@ -79,15 +79,30 @@ curl -fsS http://127.0.0.1:18789/healthz
 
 ## Ollama рядом с ботом (Docker Compose)
 
-Чтобы триал/фолбэк шли в локальную модель без установки Ollama на хост вручную:
+Лёгкая модель по умолчанию в шаблоне: **`qwen2.5:0.5b`** (мало RAM/диска; не облачный API — локальный инференс).
 
 ```bash
+cd /opt/krusty-krab   # или каталог бота
 docker compose --env-file .env --profile ollama up -d --build
+bash scripts/ollama-pull-default.sh
 ```
 
-В `.env` бота укажите `OLLAMA_BASE_URL=http://ollama:11434`, `TRIAL_PROVIDER=ollama`, `FALLBACK_PROVIDER=ollama`, модель — `OLLAMA_MODEL` (после первого старта: `docker compose exec ollama ollama pull <имя>`).
+В `.env` бота для триала/фолбэка через Ollama: `OLLAMA_BASE_URL=http://ollama:11434`, `OLLAMA_MODEL=qwen2.5:0.5b`, `TRIAL_PROVIDER=ollama`, `FALLBACK_PROVIDER=ollama`, затем `docker compose --env-file .env --profile ollama up -d`.
 
-**Связка OpenClaw → Ollama:** модель и провайдер задаются в конфигурации **OpenClaw Gateway** (веб-UI или CLI после `onboard`): укажите там Ollama как бэкенд (хост `host.docker.internal:11434`, если Ollama в compose на том же сервере, либо имя сервиса `ollama`, если Gateway тоже в общей Docker-сети — зависит от того, как вы подняли Gateway). Бот к LLM ходит только через свой роутер (`openclaw` / `openai` / …); OpenClaw сам проксирует запросы к выбранному вами бэкенду.
+### OpenClaw (в Docker) → Ollama на том же хосте
+
+Gateway в отдельном compose не видит сервис `ollama` по имени. С хоста Ollama доступен на `127.0.0.1:11434`; **из контейнера** `openclaw-gateway` обычно подходит **`http://172.17.0.1:11434`** (интерфейс `docker0` на хосте). Если не коннектится, уточните IP: `ip -4 addr show docker0`.
+
+Скрипт из репозитория бота (после `pull` модели):
+
+```bash
+sudo bash /opt/krusty-krab/scripts/openclaw-wire-ollama.sh
+# или: OLLAMA_URL=http://172.17.0.1:11434 OLLAMA_MODEL=qwen2.5:0.5b OPENCLAW_ROOT=/opt/openclaw bash scripts/openclaw-wire-ollama.sh
+```
+
+Он запускает неинтерактивный `onboard` с провайдером Ollama и перезапускает gateway. Подробности и ручная настройка: [OpenClaw — Ollama](https://docs.openclaw.ai/providers/ollama) (нативный URL **без** суффикса `/v1`).
+
+**Безопасность:** порт **11434** не должен быть открыт в интернет; ограничьте firewall-ом.
 
 ## HTTP OpenResponses
 
@@ -104,4 +119,4 @@ docker compose up -d openclaw-gateway
 
 ## Безопасность
 
-Не публикуйте порт `18789` в интернет без TLS и ограничения доступа. Для продакшена обычно используют reverse proxy (Caddy/NGINX) с HTTPS и firewall только для нужных IP.
+Не публикуйте порт `18789` в интернет без TLS и ограничения доступа. Для продакшена обычно используют reverse proxy (Caddy/NGINX) с HTTPS и firewall только для нужных IP. Порт **Ollama 11434** также держите только для локальной сети/localhost.
