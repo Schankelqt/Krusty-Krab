@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.user import User
-from services.billing_period import subscription_window_for_payment
+from services.billing_period import subscription_period_on_admin_activate
 
 
 async def activate_paid_subscription(
@@ -20,7 +20,11 @@ async def activate_paid_subscription(
     user = await session.get(User, user_id)
     if not user:
         raise ValueError(f"User {user_id} not found")
-    period_start, period_end = subscription_window_for_payment(paid_at, user.subscription_period_end)
+    period_start, period_end = subscription_period_on_admin_activate(
+        paid_at=paid_at,
+        prev_start=user.subscription_period_start,
+        prev_end=user.subscription_period_end,
+    )
     user.is_active = True
     if plan is not None:
         user.plan = plan
