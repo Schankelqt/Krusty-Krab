@@ -91,6 +91,18 @@ async def resolve_chat_access(
     usage_service: UsageService,
     limits: LimitsService,
 ) -> AccessDecision:
+    if settings.admin_skip_llm_limits and user.id in settings.admin_id_set:
+        return AccessDecision(
+            allowed=True,
+            deny_message=None,
+            provider_name=settings.primary_provider,
+            increment_primary_daily=False,
+            increment_trial=False,
+            increment_soft_daily=False,
+            increment_paid_fallback_daily=False,
+            deny_reason=None,
+        )
+
     if paid_period_active(user, now):
         start = user.subscription_period_start
         end = user.subscription_period_end

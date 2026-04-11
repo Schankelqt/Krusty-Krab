@@ -77,6 +77,8 @@ class Settings(BaseSettings):
     # Internal testing
     internal_test_mode: bool = Field(default=True, alias="INTERNAL_TEST_MODE")
     internal_whitelist_ids: str = Field(default="", alias="INTERNAL_WHITELIST_IDS")
+    # Админы (ADMIN_IDS): без лимитов триала/soft/токенов периода — только для отладки; в проде держите false
+    admin_skip_llm_limits: bool = Field(default=False, alias="ADMIN_SKIP_LLM_LIMITS")
 
     # Метрики: события в БД + отчёт в Telegram
     metrics_enabled: bool = Field(default=True, alias="METRICS_ENABLED")
