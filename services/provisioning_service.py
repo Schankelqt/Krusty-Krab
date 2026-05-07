@@ -567,15 +567,19 @@ async def _ensure_job_steps(session: AsyncSession, job_id: int) -> None:
             text(
                 """
                 INSERT INTO provision_steps (job_id, step_key, status, error_message)
-                SELECT :job_id, :step_key, 'queued', NULL
+                SELECT :job_id, :step_key_insert, 'queued', NULL
                 WHERE NOT EXISTS (
                     SELECT 1
                     FROM provision_steps
-                    WHERE job_id = :job_id AND step_key = :step_key
+                    WHERE job_id = :job_id AND step_key = :step_key_match
                 )
                 """
             ),
-            {"job_id": job_id, "step_key": step_key},
+            {
+                "job_id": job_id,
+                "step_key_insert": step_key,
+                "step_key_match": step_key,
+            },
         )
 
 
