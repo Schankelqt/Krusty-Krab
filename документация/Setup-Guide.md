@@ -183,6 +183,46 @@ CREATE TABLE IF NOT EXISTS app_settings (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- foundation для оркестратора "main orchestrator creates assistants"
+-- можно выполнить этим блоком или целиком скриптом scripts/sql/add_orchestrator_tables.sql
+CREATE TABLE IF NOT EXISTS assistant_instances (
+  id SERIAL PRIMARY KEY,
+  owner_user_id BIGINT NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  purpose VARCHAR(512) NOT NULL,
+  goal_text TEXT,
+  template_key VARCHAR(128) NOT NULL,
+  route_mode VARCHAR(32) NOT NULL DEFAULT 'auto',
+  status VARCHAR(32) NOT NULL DEFAULT 'draft',
+  telegram_bot_username VARCHAR(255),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS provision_jobs (
+  id SERIAL PRIMARY KEY,
+  owner_user_id BIGINT NOT NULL,
+  assistant_instance_id INTEGER,
+  job_type VARCHAR(64) NOT NULL DEFAULT 'create_assistant',
+  template_key VARCHAR(128) NOT NULL,
+  goal_text TEXT,
+  status VARCHAR(32) NOT NULL DEFAULT 'queued',
+  error_message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS provision_steps (
+  id SERIAL PRIMARY KEY,
+  job_id INTEGER NOT NULL,
+  step_key VARCHAR(128) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'queued',
+  details JSONB,
+  error_message TEXT,
+  started_at TIMESTAMPTZ,
+  finished_at TIMESTAMPTZ
+);
 ```
 
 Точные имена колонок сверяйте с **`models/`** при изменениях кода.

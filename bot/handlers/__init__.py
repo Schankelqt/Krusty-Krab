@@ -1,4 +1,13 @@
-from bot.handlers import admin, admin_grant_wizard, admin_panel, agent_settings, chat, start, system_errors
+from bot.handlers import (
+    admin,
+    admin_grant_wizard,
+    admin_panel,
+    agent_settings,
+    chat,
+    orchestrator,
+    start,
+    system_errors,
+)
 
 __all__ = [
     "start",
@@ -7,5 +16,6 @@ __all__ = [
     "admin_grant_wizard",
     "admin_panel",
     "agent_settings",
+    "orchestrator",
     "system_errors",
 ]

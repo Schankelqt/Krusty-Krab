@@ -119,6 +119,9 @@ async def _send_main_welcome(message: Message | None, settings) -> None:
         f"• {settings.btn_plans} — выбор линии модели и пакета токенов.\n"
         "• /tokens — ваши лимиты.\n"
         f"• {settings.btn_agent_settings} или /agent — настройки ассистента.\n\n"
+        "Новый UX:\n"
+        "• /create_assistant — мастер создания нового ассистента.\n"
+        "• /my_assistants — список ваших ассистентов.\n\n"
         "Пишите обычным текстом в чат, когда доступ открыт."
     )
     await message.answer(text, reply_markup=main_menu_reply_keyboard())
@@ -133,6 +136,9 @@ async def cmd_help(message: Message) -> None:
         "/help — эта справка\n"
         "/tokens — лимиты (триал / подписка / токены пакета)\n"
         "/agent — персонализация ассистента (OpenClaw)\n"
+        "/create_assistant — мастер создания ассистента\n"
+        "/my_assistants — ваши ассистенты\n"
+        "/jobs — последние заявки на настройку\n"
         "/admin — панель настроек (только администраторы)\n\n"
         f"Кнопки: «{settings.btn_trial}», «{settings.btn_plans}», «{settings.btn_agent_settings}»."
     )
