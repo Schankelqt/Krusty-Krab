@@ -1,5 +1,6 @@
 """Уведомления команде (админы / отдельный чат)."""
 
+import html
 import logging
 
 from aiogram import Bot
@@ -33,14 +34,15 @@ async def notify_team_html(
             return
 
     bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    safe_text = html.escape(text)
     try:
         chat = (settings.admin_team_chat_id or "").strip()
         if chat:
-            await bot.send_message(chat_id=int(chat), text=f"🔔 <b>Команда</b>\n{text}")
+            await bot.send_message(chat_id=int(chat), text=f"🔔 <b>Команда</b>\n{safe_text}")
         else:
             for aid in settings.admin_id_set:
                 try:
-                    await bot.send_message(chat_id=aid, text=f"🔔 <b>Бот</b>\n{text}")
+                    await bot.send_message(chat_id=aid, text=f"🔔 <b>Бот</b>\n{safe_text}")
                 except Exception:
                     logger.exception("Failed to notify admin %s", aid)
     finally:

@@ -54,6 +54,6 @@ async def tick_subscription_reminders(bot: Bot, redis: Redis) -> None:
         )
         try:
             await bot.send_message(chat_id=user.id, text=text)
-            await redis.set(key, "1", ex=60 * 86400)
+            await redis.set(key, "1", ex=settings.subscription_reminder_dedupe_ttl_days * 86400)
         except Exception:
             logger.exception("subscription reminder failed user=%s", user.id)

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Integer, String, Text
+from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,6 +14,7 @@ class ProvisionStep(Base):
             "status IN ('queued', 'running', 'failed', 'completed', 'skipped')",
             name="ck_provision_steps_status",
         ),
+        Index("ix_provision_steps_job_id_step_key", "job_id", "step_key"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

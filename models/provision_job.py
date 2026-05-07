@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, CheckConstraint, Integer, String, Text
+from sqlalchemy import BigInteger, CheckConstraint, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base, TimestampMixin
@@ -15,6 +15,7 @@ class ProvisionJob(Base, TimestampMixin):
             "status IN ('queued', 'running', 'needs_input', 'failed', 'completed')",
             name="ck_provision_jobs_status",
         ),
+        Index("ix_provision_jobs_status_created_at", "status", "created_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

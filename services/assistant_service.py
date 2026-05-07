@@ -11,6 +11,9 @@ async def list_user_assistants(
     owner_user_id: int,
     limit: int = 20,
 ) -> list[dict[str, Any]]:
+    if owner_user_id <= 0:
+        return []
+
     result = await session.execute(
         text(
             """
@@ -36,7 +39,7 @@ async def list_user_assistants(
             "limit": max(1, min(limit, 100)),
         },
     )
-    return [dict(row) for row in result.mappings().all()]
+    return [_serialize_assistant_row(dict(row)) for row in result.mappings().all()]
 
 
 async def get_user_assistant(
@@ -44,6 +47,9 @@ async def get_user_assistant(
     owner_user_id: int,
     assistant_instance_id: int,
 ) -> dict[str, Any] | None:
+    if owner_user_id <= 0 or assistant_instance_id <= 0:
+        return None
+
     result = await session.execute(
         text(
             """
@@ -68,4 +74,19 @@ async def get_user_assistant(
         },
     )
     row = result.mappings().first()
-    return dict(row) if row is not None else None
+    return _serialize_assistant_row(dict(row)) if row is not None else None
+
+
+def _serialize_assistant_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": int(row["id"]),
+        "owner_user_id": int(row["owner_user_id"]),
+        "name": str(row.get("name") or ""),
+        "purpose": str(row.get("purpose") or ""),
+        "template_key": str(row.get("template_key") or ""),
+        "route_mode": str(row.get("route_mode") or "auto"),
+        "goal_text": None if row.get("goal_text") is None else str(row.get("goal_text")),
+        "status": str(row.get("status") or "draft"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+    }

@@ -39,7 +39,7 @@ async def send_daily_report(bot: Bot, settings: Settings) -> None:
 async def metrics_reporter_loop(bot: Bot) -> None:
     settings = get_settings()
     if settings.metrics_report_on_start and settings.metrics_report_enabled:
-        await asyncio.sleep(15)
+        await asyncio.sleep(settings.metrics_report_start_delay_seconds)
         try:
             await send_daily_report(bot, get_settings())
         except Exception:

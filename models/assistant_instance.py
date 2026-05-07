@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, CheckConstraint, Integer, String, Text
+from sqlalchemy import BigInteger, CheckConstraint, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base, TimestampMixin
@@ -15,6 +15,7 @@ class AssistantInstance(Base, TimestampMixin):
             "status IN ('draft', 'provisioning', 'ready', 'failed', 'archived')",
             name="ck_assistant_instances_status",
         ),
+        Index("ix_assistant_instances_status", "status"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

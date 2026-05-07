@@ -92,12 +92,24 @@ class Settings(BaseSettings):
     metrics_report_chat_id: str = Field(default="", alias="METRICS_REPORT_CHAT_ID")
     metrics_report_hour_utc: int = Field(default=8, ge=0, le=23, alias="METRICS_REPORT_HOUR_UTC")
     metrics_report_on_start: bool = Field(default=False, alias="METRICS_REPORT_ON_START")
+    metrics_report_start_delay_seconds: int = Field(
+        default=15, ge=0, alias="METRICS_REPORT_START_DELAY_SECONDS"
+    )
     metrics_internal_token: str = Field(default="", alias="METRICS_INTERNAL_TOKEN")
+    provisioning_poll_interval_seconds: float = Field(default=5.0, gt=0, alias="PROVISIONING_POLL_INTERVAL_SECONDS")
 
     # HTTP API (вебхуки ЮKassa)
     billing_http_enabled: bool = Field(default=True, alias="BILLING_HTTP_ENABLED")
     api_host: str = Field(default="0.0.0.0", alias="API_HOST")
     api_port: int = Field(default=8080, alias="API_PORT")
+    # Период фоновой проверки клиентов с активной подпиской для напоминаний.
+    subscription_reminder_interval_seconds: int = Field(
+        default=3600, ge=60, alias="SUBSCRIPTION_REMINDER_INTERVAL_SECONDS"
+    )
+    # TTL дедупликации напоминаний по одному и тому же периоду подписки.
+    subscription_reminder_dedupe_ttl_days: int = Field(
+        default=60, ge=1, alias="SUBSCRIPTION_REMINDER_DEDUPE_TTL_DAYS"
+    )
 
     # ЮKassa (https://yookassa.ru/developers/api)
     yukassa_shop_id: str = Field(default="", alias="YUKASSA_SHOP_ID")
