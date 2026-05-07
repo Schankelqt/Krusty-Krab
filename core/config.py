@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     btn_trial: str = Field(default="🪄 Познакомиться с OpenClaw", alias="BTN_TRIAL")
     btn_plans: str = Field(default="💳 Тарифы и оплата", alias="BTN_PLANS")
     btn_agent_settings: str = Field(default="⚙️ Настройки ассистента", alias="BTN_AGENT_SETTINGS")
+    btn_consultant: str = Field(default="🤝 Как пользоваться", alias="BTN_CONSULTANT")
 
     # Ответ бота: суффикс (provider, model) — для отладки; в проде обычно false
     show_llm_debug_in_reply: bool = Field(default=False, alias="SHOW_LLM_DEBUG_IN_REPLY")

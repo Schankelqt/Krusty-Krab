@@ -15,6 +15,7 @@ from bot.handlers import (
     admin_panel,
     agent_settings,
     chat,
+    client_guidance,
     orchestrator,
     start,
     system_errors,
@@ -61,6 +62,7 @@ async def run_bot() -> None:
     dp.include_router(admin_panel.router)
     dp.include_router(agent_settings.router)
     dp.include_router(start.router)
+    dp.include_router(client_guidance.router)
     dp.include_router(orchestrator.router)
     dp.include_router(chat.router)
     if settings.metrics_report_enabled and settings.metrics_report_chat_id.strip():
